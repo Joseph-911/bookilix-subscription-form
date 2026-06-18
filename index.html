@@ -157,7 +157,6 @@
             // --------------------- Initialize ---------------------- //
             // ------------------------------------------------------- //
             var fields;
-            var isReady = false;
 
             // These will be injected by React Native
             const urlParams = new URLSearchParams(window.location.search);
@@ -203,14 +202,6 @@
                             height: "auto",
                             width: "auto",
                         },
-                    },
-                    onEvent: function (event) {
-                        if (event.type === "ready") {
-                            isReady = true;
-                        }
-                        if (event.type === "validityChange") {
-                            clearError(event.field);
-                        }
                     },
                 });
             });
@@ -265,12 +256,6 @@
             $(document).ready(function () {
                 $("#payment-form").on("submit", function (e) {
                     e.preventDefault();
-                    if (!isReady) {
-                        showGeneralError(
-                            "Payment form is still loading. Please wait.",
-                        );
-                        return;
-                    }
                     processPayment();
                 });
             });
