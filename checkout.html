@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+        />
+        <base href="https://hf.tranzila.com/" />
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.js"></script>
+        <script src="https://hf.tranzila.com/assets/js/thostedf.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+        <title>Bookilix Payment</title>
+        <style>
+            /* Hosted field containers need explicit height */
+            .hosted-field-container {
+                height: 42px;
+                display: flex;
+                align-items: center;
+            }
+            .hosted-field-container iframe {
+                width: 100%;
+                height: 100%;
+                border: none;
+            }
+        </style>
+    </head>
+    <body>
+        <section class="bg-white antialiased md:py-16">
+            <div class="mx-auto max-w-screen-xl px-4 2xl:px-0">
+                <div class="mx-auto max-w-5xl">
+                    <h2 class="text-xl font-semibold text-gray-900 sm:text-2xl">
+                        Payment
+                    </h2>
+
+                    <!-- Amount Display -->
+                    <div
+                        class="mt-4 mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200"
+                    >
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-600"
+                                >Total Amount</span
+                            >
+                            <span
+                                class="text-xl font-bold text-gray-900"
+                                id="display-amount"
+                                >₪0.00</span
+                            >
+                        </div>
+                        <p
+                            class="text-xs text-gray-500 mt-1 text-right"
+                            id="display-cycle"
+                        ></p>
+                    </div>
+
+                    <!-- General Error -->
+                    <div
+                        id="general-error"
+                        class="hidden mb-4 p-3 bg-red-50 border border-red-300 rounded-lg text-sm text-red-600"
+                    ></div>
+
+                    <div class="mt-4 sm:mt-8 lg:flex lg:items-start lg:gap-12">
+                        <form
+                            class="w-full rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-6 lg:max-w-xl lg:p-8"
+                            id="payment-form"
+                        >
+                            <!-- Hidden fields -->
+                            <input type="hidden" id="thtk" value="" />
+                            <input type="hidden" id="amount" value="" />
+                            <input type="hidden" id="terminal-name" value="" />
+
+                            <div class="mb-6 grid grid-cols-2 gap-4">
+                                <!-- Full Name (non-hosted field) -->
+                                <div class="col-span-2 sm:col-span-1">
+                                    <label
+                                        class="mb-2 block text-sm font-medium text-gray-900"
+                                    >
+                                        Full name (as displayed on card)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        id="full_name"
+                                        class="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900"
+                                    />
+                                    <p
+                                        class="text-xs text-red-500 mt-1 min-h-4"
+                                        id="errors_for_full_name"
+                                    ></p>
+                                </div>
+
+                                <!-- Card Number (Hosted Field) -->
+                                <div class="col-span-2">
+                                    <label
+                                        class="mb-2 block text-sm font-medium text-gray-900"
+                                    >
+                                        Card number
+                                    </label>
+                                    <div
+                                        id="credit_card_number"
+                                        class="hosted-field-container block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5"
+                                    ></div>
+                                    <p
+                                        class="text-xs text-red-500 mt-1 min-h-4"
+                                        id="errors_for_number"
+                                    ></p>
+                                </div>
+
+                                <!-- Expiry (Hosted Field) -->
+                                <div>
+                                    <label
+                                        class="mb-2 block text-sm font-medium text-gray-900"
+                                    >
+                                        Card expiration
+                                    </label>
+                                    <div
+                                        id="expiry"
+                                        class="hosted-field-container block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5"
+                                    ></div>
+                                    <p
+                                        class="text-xs text-red-500 mt-1 min-h-4"
+                                        id="errors_for_expiry"
+                                    ></p>
+                                </div>
+
+                                <!-- CVV (Hosted Field) -->
+                                <div>
+                                    <label
+                                        class="mb-2 block text-sm font-medium text-gray-900"
+                                    >
+                                        CVV
+                                    </label>
+                                    <div
+                                        id="cvv"
+                                        class="hosted-field-container block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5"
+                                    ></div>
+                                    <p
+                                        class="text-xs text-red-500 mt-1 min-h-4"
+                                        id="errors_for_cvv"
+                                    ></p>
+                                </div>
+                            </div>
+
+                            <button
+                                type="submit"
+                                id="submit-btn"
+                                class="flex w-full items-center justify-center rounded-lg bg-green-500 px-5 py-3 font-medium text-white hover:bg-green-400 focus:outline-none focus:ring-4 focus:ring-green-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Pay now
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <script>
+            // ------------------------------------------------------- //
+            // --------------------- Initialize ---------------------- //
+            // ------------------------------------------------------- //
+            var fields;
+            var isReady = false;
+
+            // These will be injected by React Native
+            const urlParams = new URLSearchParams(window.location.search);
+            var thtk = urlParams.get('thtk') || '';
+            var amount = urlParams.get('amount') || '0';
+            var terminalName = urlParams.get('terminal_name') || '';
+            var cycle = urlParams.get('cycle') || 'monthly';
+
+            // Update display
+            document.getElementById('display-amount').textContent = '₪' + parseFloat(amount).toFixed(2);
+            document.getElementById('display-cycle').textContent = cycle === 'annual' ? 'Billed annually' : 'Billed monthly';
+
+            // ------------------------------------------------------- //
+            // -------------- Initialize Hosted Fields --------------- //
+            // ------------------------------------------------------- //
+            $(document).ready(function () {
+                fields = TzlaHostedFields.create({
+                    sandbox: false,
+                    fields: {
+                        credit_card_number: {
+                            selector: "#credit_card_number",
+                            placeholder: "0000 0000 0000 0000",
+                            tabindex: 1,
+                        },
+                        cvv: {
+                            selector: "#cvv",
+                            placeholder: "•••",
+                            tabindex: 3,
+                        },
+                        expiry: {
+                            selector: "#expiry",
+                            placeholder: "MM/YY",
+                            version: "1",
+                            tabindex: 2,
+                        },
+                    },
+                    styles: {
+                        input: {
+                            "font-size": "14px",
+                            "font-family":
+                                "-apple-system, BlinkMacSystemFont, sans-serif",
+                            color: "#111827",
+                            height: "auto",
+                            width: "auto",
+                        },
+                    },
+                    onEvent: function (event) {
+                        if (event.type === "ready") {
+                            isReady = true;
+                        }
+                        if (event.type === "validityChange") {
+                            clearError(event.field);
+                        }
+                    },
+                });
+            });
+
+            // ------------------------------------------------------- //
+            // -------------------- Submit Handler ------------------- //
+            // ------------------------------------------------------- //
+            const form = document.getElementById("payment-form");
+
+            function processPayment() {
+                const btn = document.getElementById("submit-btn");
+                btn.disabled = true;
+                btn.textContent = "Processing...";
+                clearAllErrors();
+
+                fields.charge(
+                    {
+                        terminal_name: terminalName,
+                        amount: amount,
+                        thtk: thtk,
+                        tokenize: true,
+                        currency_code: "USD",
+                        response_language: "English",
+                        card_holder_name:
+                            document.getElementById("full_name").value,
+                    },
+                    function (err, response) {
+                        btn.disabled = false;
+                        btn.textContent = "Pay now";
+
+                        if (err) {
+                            handleErrors(err);
+                            return;
+                        }
+
+                        if (
+                            response &&
+                            response.transaction_response &&
+                            response.transaction_response.success
+                        ) {
+                            sendToReactNative("payment_success", response);
+                        } else {
+                            showGeneralError(
+                                response?.transaction_response?.error ||
+                                    "Payment failed. Please try again.",
+                            );
+                        }
+                    },
+                );
+            }
+
+            $(document).ready(function () {
+                $("#payment-form").on("submit", function (e) {
+                    e.preventDefault();
+                    if (!isReady) {
+                        showGeneralError(
+                            "Payment form is still loading. Please wait.",
+                        );
+                        return;
+                    }
+                    processPayment();
+                });
+            });
+
+            // ------------------------------------------------------- //
+            // ------------------- Error Handlers -------------------- //
+            // ------------------------------------------------------- //
+            function handleErrors(error) {
+                if (error.messages) {
+                    error.messages.forEach(function (message) {
+                        var errorEl = document.getElementById(
+                            "errors_for_" + message.param,
+                        );
+                        if (errorEl) errorEl.textContent = message.message;
+                    });
+                } else {
+                    showGeneralError("Payment failed. Please try again.");
+                }
+            }
+
+            function clearError(field) {
+                var errorEl = document.getElementById("errors_for_" + field);
+                if (errorEl) errorEl.textContent = "";
+            }
+
+            function clearAllErrors() {
+                ["number", "expiry", "cvv", "full_name"].forEach(function (f) {
+                    var el = document.getElementById("errors_for_" + f);
+                    if (el) el.textContent = "";
+                });
+                document
+                    .getElementById("general-error")
+                    .classList.add("hidden");
+            }
+
+            function showGeneralError(message) {
+                var el = document.getElementById("general-error");
+                el.textContent = message;
+                el.classList.remove("hidden");
+            }
+
+            // ------------------------------------------------------- //
+            // ----------------- React Native Bridge ----------------- //
+            // ------------------------------------------------------- //
+            function sendToReactNative(type, data) {
+                if (window.ReactNativeWebView) {
+                    window.ReactNativeWebView.postMessage(
+                        JSON.stringify({
+                            type: type,
+                            data: data,
+                        }),
+                    );
+                }
+            }
+        </script>
+    </body>
+</html>
